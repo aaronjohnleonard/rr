@@ -29,14 +29,14 @@ router.post('/newFriendship', function(req, res)
 
 router.post('/newReminder', function(req, res)
 {
-   userCurTime = new Date(req.body.curTime);
+   userCurTime = new Date(+req.body.curTime);
    //console.log("user raw: "+req.body.curTime)
    //console.log("user: "+userCurTime)
    serverCurTime = new Date();
    //console.log("server: "+serverCurTime)
    diff = userCurTime - serverCurTime
    //console.log("diff: "+diff)
-   reminderTime = new Date(req.body.reminderTime)
+   reminderTime = new Date(+req.body.reminderTime)
    //console.log("reminderTime raw: "+req.body.reminderTime)
    //console.log("reminderTime: "+reminderTime)
    adjustment = reminderTime-diff
@@ -87,6 +87,41 @@ router.post('/newUser', function(req, res)
    })
 });
 
+router.get('/getReminders', function(req, res)
+{
+   getRemindersTo(req.query.userId, function(err, reminderTo_rows) {
+      getRemindersFrom(req.query.userId, function(err, reminderFrom_rows) {
+         console.log(reminderTo_rows);
+         console.log(reminderFrom_rows);
+         var allReminders = {to:reminderTo_rows, from:reminderFrom_rows}
+         res.send(allReminders);
+      })
+   })
+});
+
+router.get('/removeReminder', function(req, res)
+{
+   deleteReminder(req.query.reminderId, res);
+});   
+
+router.get('/removeFriend', function(req, res)
+{
+   deleteFriend(req.query.userId, req.query.friendId, res);
+});
+
+router.get('/getFriend', function(req, res)
+{
+   getFriend(req.query.friendId, function(err, rows){
+      console.log(rows[0]);
+      res.send(rows[0]);
+   });
+});
+
+router.post('/editFriend', function(req, res)
+{
+   editFriend(req.body.id, req.body.firstName, req.body.lastName, req.body.phoneNumber, res);
+});
+
 function insertUser(firstName, lastName, phoneNumber, hasApp, res)
 {
    connection.query('INSERT INTO user (first_name,last_name,phone_number, has_app) values ("'+firstName+'","'+lastName+'","'+phoneNumber+'",'+hasApp+');', function(err, rows){
@@ -112,7 +147,7 @@ function insertFriendship(userId, friendId, res)
 }
 function insertReminder(text, originatingUser, destinationUser, reminderTime, res)
 {
-   connection.query('INSERT INTO reminder (text, originating_user, destination_user, origination_time, reminder_time) values ('+text+','+originatingUser+','+destinationUser+",NOW(),"+reminderTime+')', function(err, rows){
+   connection.query('INSERT INTO reminder (text, originating_user, destination_user, origination_time, reminder_time) values ("'+text+'",'+originatingUser+','+destinationUser+",NOW(),"+reminderTime+')', function(err, rows){
       if(err){
          console.log(err)
       }
@@ -135,6 +170,42 @@ function updateId(formerId, newId)
    connection.query("UPDATE reminder SET destination_user="+newId+" WHERE destination_user="+formerId)
    connection.query("DELETE FROM user WHERE id="+formerId)
    console.log("Deleted user "+formerId)
+}
+function getRemindersFrom(userId, callback)
+{
+   connection.query("SELECT reminder.id, reminder.text, unix_timestamp(reminder.reminder_time), user.first_name, user.last_name "+
+                     "FROM  reminder "+
+                     "INNER JOIN  user ON reminder.destination_user = user.id "+
+                     "WHERE originating_user='"+userId+"'", callback)
+}
+function getRemindersTo(userId, callback)
+{
+   connection.query("SELECT reminder.id, reminder.text, unix_timestamp(reminder.reminder_time), user.first_name, user.last_name "+
+                     "FROM  reminder "+
+                     "INNER JOIN  user ON reminder.originating_user = user.id "+
+                     "WHERE destination_user='"+userId+"'", callback)
+}
+function deleteReminder(reminderId, res)
+{
+   connection.query("DELETE FROM reminder WHERE id='"+reminderId+"'");
+   console.log("deleting "+reminderId);
+   res.send("success");
+}
+function deleteFriend(userId, friendId, res)
+{
+   connection.query("DELETE FROM user_user WHERE user_id='"+userId+"' AND friend_id='"+friendId+"'");
+   res.send("success");
+}
+function getFriend(friendId, callback)
+{
+   console.log("SELECT * FROM user WHERE id='"+friendId+"'")
+   connection.query("SELECT * FROM user WHERE id='"+friendId+"'", callback);
+}
+function editFriend(id, firstName, lastName, phoneNumber, res)
+{
+   console.log("UPDATE user SET first_name="+firstName+", last_name="+lastName+", phone_number="+phoneNumber+" WHERE id="+id)
+   connection.query("UPDATE user SET first_name='"+firstName+"', last_name='"+lastName+"', phone_number='"+phoneNumber+"' WHERE id="+id)
+   res.send("success");
 }
 
 module.exports = router;
