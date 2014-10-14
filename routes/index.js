@@ -1,13 +1,13 @@
-   var express = require('express');
+var express = require('express');
 var router = express.Router();
 var mysql = require('mysql');
 
 var connection = mysql.createConnection({
-   host         : 'localhost',
-   user         : 'root',
-   password     : 'english33'
+   host     : 'us-cdbr-iron-east-01.cleardb.net',
+   user     : 'bf491532417c27',
+   password : 'b2fff196'
 });
-connection.query('USE reminders');
+connection.query('USE heroku_466f3f976236f66');
 
 /* GET home page. */
 router.get('/', function(req, res) 

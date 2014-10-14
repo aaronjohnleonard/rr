@@ -13,13 +13,15 @@ var users = require('./routes/users');
 
 var app = express();
 
+app.set('port', process.env.PORT || 5000);
+
 var connection = mysql.createConnection({
-   host		: 'localhost',
-   user		: 'root',
-   password	: 'english33'
+   host     : 'us-cdbr-iron-east-01.cleardb.net',
+   user     : 'bf491532417c27',
+   password : 'b2fff196'
 });
 
-connection.query('USE reminders');
+connection.query('USE heroku_466f3f976236f66');
 //connection.query('INSERT INTO user (first_name,last_name,phone_number) values ("aaron","leonard","555-5555")');
 
 // view engine setup
