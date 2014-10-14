@@ -13,16 +13,36 @@ var users = require('./routes/users');
 
 var app = express();
 
-app.set('port', process.env.PORT || 5000);
-
-var connection = mysql.createConnection({
+var db_config = {
    host     : 'us-cdbr-iron-east-01.cleardb.net',
    user     : 'bf491532417c27',
    password : 'b2fff196'
-});
+};
 
+var connection;
+
+app.set('port', process.env.PORT || 5000);
 connection.query('USE heroku_466f3f976236f66');
-//connection.query('INSERT INTO user (first_name,last_name,phone_number) values ("aaron","leonard","555-5555")');
+
+function handleDisconnect() {
+    connection = mysql.connection(db_config);
+
+    connection.connect(function(err) {              // The server is either down
+        if(err) {                                     // or restarting (takes a while sometimes).
+          console.log('error when connecting to db:', err);
+          setTimeout(handleDisconnect, 2000); // We introduce a delay before attempting to reconnect,
+        }                                     // to avoid a hot loop, and to allow our node script to
+    });  
+
+    connection.on('error', function(err) {
+        console.log('db error', err);
+        if(err.code === 'PROTOCOL_CONNECTION_LOST') { // Connection to the MySQL server is usually
+          handleDisconnect();                         // lost due to either server restart, or a
+        } else {                                      // connnection idle timeout (the wait_timeout
+          throw err;                                  // server variable configures this)
+        }
+    });
+}
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
