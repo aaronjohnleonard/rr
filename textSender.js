@@ -42,7 +42,7 @@ var client = require('twilio')(accountSid, authToken);
 var infinite = function() {
 	console.log("checking at " + new Date())
 
-	connection.query("SELECT reminder.id, reminder.text, user.phone_number, user.first_name, user.last_name FROM reminder INNER JOIN user ON reminder.originating_user=user.id WHERE reminder_time <= NOW() AND !has_been_sent;", function(err, rows){
+	connection.query("SELECT reminder.id, reminder.text, dest_user.phone_number, orig_user.first_name, orig_user.last_name FROM reminder JOIN user orig_user ON reminder.originating_user=orig_user.id JOIN user dest_user ON reminder.destination_user=dest_user.id WHERE reminder_time <= NOW() AND !has_been_sent;", function(err, rows){
 		for (var i = 0; i < rows.length; i++) {
 			connection.query("UPDATE reminder SET has_been_sent=1 WHERE id="+rows[i].id, function(err, rows){
 				if (err)
