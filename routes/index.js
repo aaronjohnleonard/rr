@@ -30,21 +30,12 @@ router.post('/newFriendship', function(req, res)
 router.post('/newReminder', function(req, res)
 {
    userCurTime = new Date(+req.body.curTime);
-   //console.log("user raw: "+req.body.curTime)
-   //console.log("user: "+userCurTime)
    serverCurTime = new Date();
-   //console.log("server: "+serverCurTime)
    diff = userCurTime - serverCurTime
-   //console.log("diff: "+diff)
    reminderTime = new Date(+req.body.reminderTime)
-   //console.log("reminderTime raw: "+req.body.reminderTime)
-   //console.log("reminderTime: "+reminderTime)
    adjustment = reminderTime-diff
-   //console.log("adjustment: "+adjustment)
    adjustedTime = new Date(adjustment)
-   //console.log("adjustedTime: "+adjustedTime)
    adjustedTimeString = '"'+adjustedTime.getFullYear()+'-'+(adjustedTime.getMonth()+1)+'-'+adjustedTime.getDay()+' '+adjustedTime.getHours()+':'+adjustedTime.getMinutes()+':'+adjustedTime.getSeconds()+'"'
-   //console.log(adjustedTimeString)
    insertReminder(req.body.text, req.body.originatingUser, req.body.destinationUser, adjustedTimeString, res)
 });
 
@@ -67,6 +58,18 @@ router.post('/addFriend', function(req, res)
       }
    })
 
+});
+
+router.get('/getUser', function(req, res)
+{
+   getUserById(req.query.userId, function(err, rows) {
+      if(!rows.length){
+         res.send(false);
+      }
+      else {
+         res.send(rows);
+      }
+   })
 });
 
 router.post('/newUser', function(req, res) 
@@ -159,6 +162,10 @@ function insertReminder(text, originatingUser, destinationUser, reminderTime, re
 function getUser(phoneNumber, callback)
 {
    connection.query("SELECT * FROM user WHERE phone_number='"+phoneNumber+"'", callback);
+}
+function getUserById(userId, callback)
+{
+   connection.query("SELECT * FROM user WHERE id='"+userId+"'", callback);
 }
 function getFriends(id, callback)
 {

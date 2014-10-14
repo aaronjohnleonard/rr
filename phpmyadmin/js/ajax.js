@@ -13,6 +13,10 @@ var AJAX = {
      */
     source: null,
     /**
+     * @var object xhr A reference to the ajax request that is currently running
+     */
+    xhr: null,
+    /**
      * @var function Callback to execute after a successful request
      *               Used by PMA_commonFunctions from common.js
      */
@@ -34,11 +38,11 @@ var AJAX = {
      *
      * @return int
      */
-    hash: function (key){
+    hash: function (key) {
         /* http://burtleburtle.net/bob/hash/doobs.html#one */
         key += "";
-        var len = key.length, hash=0, i=0;
-        for (; i<len; ++i) {
+        var len = key.length, hash = 0, i = 0;
+        for (; i < len; ++i) {
             hash += key.charCodeAt(i);
             hash += (hash << 10);
             hash ^= (hash >> 6);
@@ -59,10 +63,12 @@ var AJAX = {
     registerOnload: function (file, func) {
         var eventName = 'onload_' + AJAX.hash(file);
         $(document).bind(eventName, func);
-        this._debug && console.log(
-            // no need to translate
-            "Registered event " + eventName + " for file " + file
-        );
+        if (this._debug) {
+            console.log(
+                // no need to translate
+                "Registered event " + eventName + " for file " + file
+            );
+        }
         return this;
     },
     /**
@@ -78,10 +84,12 @@ var AJAX = {
     registerTeardown: function (file, func) {
         var eventName = 'teardown_' + AJAX.hash(file);
         $(document).bind(eventName, func);
-        this._debug && console.log(
-            // no need to translate
-            "Registered event " + eventName + " for file " + file
-        );
+        if (this._debug) {
+            console.log(
+                // no need to translate
+                "Registered event " + eventName + " for file " + file
+            );
+        }
         return this;
     },
     /**
@@ -95,10 +103,12 @@ var AJAX = {
     fireOnload: function (file) {
         var eventName = 'onload_' + AJAX.hash(file);
         $(document).trigger(eventName);
-        this._debug && console.log(
-            // no need to translate
-            "Fired event " + eventName + " for file " + file
-        );
+        if (this._debug) {
+            console.log(
+                // no need to translate
+                "Fired event " + eventName + " for file " + file
+            );
+        }
     },
     /**
      * Called just before a page is torn down, once for every
@@ -111,10 +121,12 @@ var AJAX = {
     fireTeardown: function (file) {
         var eventName = 'teardown_' + AJAX.hash(file);
         $(document).triggerHandler(eventName);
-        this._debug && console.log(
-            // no need to translate
-            "Fired event " + eventName + " for file " + file
-        );
+        if (this._debug) {
+            console.log(
+                // no need to translate
+                "Fired event " + eventName + " for file " + file
+            );
+        }
     },
     /**
      * Event handler for clicks on links and form submissions
@@ -139,8 +151,8 @@ var AJAX = {
         } else if (href && href.match(/^mailto/)) {
             return true;
         } else if ($(this).hasClass('ui-datepicker-next') ||
-                   $(this).hasClass('ui-datepicker-prev')
-                  ) {
+            $(this).hasClass('ui-datepicker-prev')
+        ) {
             return true;
         }
 
@@ -148,12 +160,26 @@ var AJAX = {
             event.preventDefault();
             event.stopImmediatePropagation();
         }
-        if (AJAX.active == true) {
-            // Silently bail out, there is already a request in progress.
-            // TODO: save a reference to the request and cancel the old request
-            // when the user requests something else. Something like this is
-            // already implemented in the PMA_fastFilter object in navigation.js
-            return false;
+        if (AJAX.active === true) {
+            // Cancel the old request if abortable, when the user requests
+            // something else. Otherwise silently bail out, as there is already
+            // a request well in progress.
+            if (AJAX.xhr) {
+                //In case of a link request, attempt aborting
+                AJAX.xhr.abort();
+                if(AJAX.xhr.status === 0 && AJAX.xhr.statusText === 'abort') {
+                    //If aborted
+                    AJAX.$msgbox = PMA_ajaxShowMessage(PMA_messages.strAbortedRequest);
+                    AJAX.active = false;
+                    AJAX.xhr = null;
+                } else {
+                    //If can't abort
+                    return false;
+                }
+            } else {
+                //In case submitting a form, don't attempt aborting
+                return false;
+            }
         }
 
         AJAX.source = $(this);
@@ -169,12 +195,15 @@ var AJAX = {
         // Add a list of menu hashes that we have in the cache to the request
         params += AJAX.cache.menus.getRequestParam();
 
-        AJAX._debug && console.log("Loading: " + url); // no need to translate
+        if (AJAX._debug) {
+            console.log("Loading: " + url); // no need to translate
+        }
 
         if (isLink) {
             AJAX.active = true;
             AJAX.$msgbox = PMA_ajaxShowMessage();
-            $.get(url, params, AJAX.responseHandler);
+            //Save reference for the new link request
+            AJAX.xhr = $.get(url, params, AJAX.responseHandler);
         } else {
             /**
              * Manually fire the onsubmit event for the form, if any.
@@ -205,13 +234,17 @@ var AJAX = {
      * @return void
      */
     responseHandler: function (data) {
-        if (data.success) {
+        if (typeof data === 'undefined' || data === null) {
+            return;
+        }
+        if (typeof data.success != 'undefined' && data.success) {
             $table_clone = false;
             PMA_ajaxRemoveMessage(AJAX.$msgbox);
 
             if (data._redirect) {
                 PMA_ajaxShowMessage(data._redirect, false);
                 AJAX.active = false;
+                AJAX.xhr = null;
                 return;
             }
 
@@ -251,19 +284,31 @@ var AJAX = {
                     .not('#page_content')
                     .not('#selflink')
                     .not('#session_debug')
+                    .not('#pma_header')
+                    .not('#pma_footer')
+                    .not('#pma_demo')
                     .remove();
                 // Replace #page_content with new content
                 if (data.message && data.message.length > 0) {
                     $('#page_content').replaceWith(
                         "<div id='page_content'>" + data.message + "</div>"
                     );
+                    PMA_highlightSQL($('#page_content'));
+                    checkNumberOfFields();
                 }
 
                 if (data._selflink) {
+
+                    var source = data._selflink.split('?')[0];
+                    //Check for faulty links
+                    if (source == "import.php") {
+                    	var replacement = "tbl_sql.php";
+                    	data._selflink = data._selflink.replace(source,replacement);
+                    }
                     $('#selflink > a').attr('href', data._selflink);
                 }
                 if (data._scripts) {
-                    AJAX.scriptHandler.load(data._scripts);
+                    AJAX.scriptHandler.load(data._scripts, data._params.token);
                 }
                 if (data._selflink && data._scripts && data._menuHash && data._params) {
                     AJAX.cache.add(
@@ -279,11 +324,12 @@ var AJAX = {
                 }
                 if (data._displayMessage) {
                     $('#page_content').prepend(data._displayMessage);
+                    PMA_highlightSQL($('#page_content'));
                 }
 
                 $('#pma_errors').remove();
                 if (data._errors) {
-                    $('<div/>', {id:'pma_errors'})
+                    $('<div/>', {id : 'pma_errors'})
                         .insertAfter('#selflink')
                         .append(data._errors);
                 }
@@ -296,6 +342,16 @@ var AJAX = {
         } else {
             PMA_ajaxShowMessage(data.error, false);
             AJAX.active = false;
+            AJAX.xhr = null;
+            if (parseInt(data.redirect_flag) == 1) {
+                // add one more GET param to display session expiry msg
+                window.location.href += '&session_expired=1';
+                window.location.reload();
+            }
+            if (data.fieldWithError) {
+                $(':input.error').removeClass("error");
+                $('#'+data.fieldWithError).addClass("error");
+            }
         }
     },
     /**
@@ -343,7 +399,7 @@ var AJAX = {
          *
          * @return void
          */
-        load: function (files) {
+        load: function (files, token) {
             var self = this;
             self._scriptsToBeLoaded = [];
             self._scriptsToBeFired = [];
@@ -365,16 +421,11 @@ var AJAX = {
                     request.push("scripts[]=" + script);
                 }
             }
+            request.push("token=" + token);
+            request.push("call_done=1");
             // Download the composite js file, if necessary
             if (needRequest) {
-                $.ajax({
-                    url: "js/get_scripts.js.php?" + request.join("&"),
-                    cache: true,
-                    success: function () {
-                        self.done();
-                    },
-                    dataType: "script"
-                });
+                this.appendScript("js/get_scripts.js.php?" + request.join("&"));
             } else {
                 self.done();
             }
@@ -385,10 +436,25 @@ var AJAX = {
          * @return void
          */
         done: function () {
+            if (typeof ErrorReport !== 'undefined') {
+                ErrorReport.wrap_global_functions();
+            }
             for (var i in this._scriptsToBeFired) {
                 AJAX.fireOnload(this._scriptsToBeFired[i]);
             }
             AJAX.active = false;
+        },
+        /**
+         * Appends a script element to the head to load the scripts
+         *
+         * @return void
+         */
+        appendScript: function (url) {
+            var head = document.head || document.getElementsByTagName('head')[0];
+            var script = document.createElement('script');
+            script.type = 'text/javascript';
+            script.src = url;
+            head.appendChild(script);
         },
         /**
          * Fires all the teardown event handlers for the current page
@@ -481,7 +547,7 @@ AJAX.cache = {
         if (this.pages.length > AJAX.cache.MAX) {
             // Trim the cache, to the maximum number of allowed entries
             // This way we will have a cached menu for every page
-            for (var i=0; i<this.pages.length-this.MAX; i++) {
+            for (var i = 0; i < this.pages.length - this.MAX; i++) {
                 delete this.pages[i];
             }
         }
@@ -493,8 +559,7 @@ AJAX.cache = {
         if (rel === 'newpage' ||
             (
                 typeof rel === 'undefined' && (
-                    typeof this.pages[this.current - 1] === 'undefined'
-                    ||
+                    typeof this.pages[this.current - 1] === 'undefined' ||
                     this.pages[this.current - 1].hash !== hash
                 )
             )
@@ -520,9 +585,13 @@ AJAX.cache = {
      * @return void
      */
     navigate: function (index) {
-        if (typeof this.pages[index] === 'undefined') {
+        if (typeof this.pages[index] === 'undefined'
+            || typeof this.pages[index].content === 'undefined'
+            || typeof this.pages[index].menu === 'undefined'
+            || ! AJAX.cache.menus.get(this.pages[index].menu)
+        ) {
             PMA_ajaxShowMessage(
-                '<div class="error">' + PMA_messages['strInvalidPage'] + '</div>',
+                '<div class="error">' + PMA_messages.strInvalidPage + '</div>',
                 false
             );
         } else {
@@ -533,7 +602,7 @@ AJAX.cache = {
                 $('#selflink').html(record.selflink);
                 AJAX.cache.menus.replace(AJAX.cache.menus.get(record.menu));
                 PMA_commonParams.setAll(record.params);
-                AJAX.scriptHandler.load(record.scripts);
+                AJAX.scriptHandler.load(record.scripts, record.params ? record.params.token : PMA_commonParams.get('token'));
                 AJAX.cache.current = ++index;
             });
         }
@@ -559,7 +628,7 @@ AJAX.cache = {
          *
          * @return int
          */
-        size: function(obj) {
+        size: function (obj) {
             var size = 0, key;
             for (key in obj) {
                 if (obj.hasOwnProperty(key)) {
@@ -714,15 +783,22 @@ AJAX.setUrlHash = (function (jQuery, window) {
     if (window.location.hash.substring(0, 8) == '#PMAURL-') {
         // We have a valid hash, let's redirect the user
         // to the page that it's pointing to
-        window.location = window.location.hash.substring(
-            window.location.hash.indexOf(':') + 1
-        );
+        var colon_position = window.location.hash.indexOf(':');
+        var questionmark_position = window.location.hash.indexOf('?');
+        if (colon_position != -1 && questionmark_position != -1 && colon_position < questionmark_position) {
+            var hash_url = window.location.hash.substring(colon_position + 1, questionmark_position);
+            if (PMA_gotoWhitelist.indexOf(hash_url) != -1) {
+                window.location = window.location.hash.substring(
+                    colon_position + 1
+                );
+            }
+        }
     } else {
         // We don't have a valid hash, so we'll set it up
         // when the page finishes loading
-        jQuery(function(){
+        jQuery(function () {
             /* Check if we should set URL */
-            if (savedHash != "") {
+            if (savedHash !== "") {
                 window.location.hash = savedHash;
                 savedHash = "";
                 resetFavicon();
@@ -734,7 +810,7 @@ AJAX.setUrlHash = (function (jQuery, window) {
     /**
      * Register an event handler for when the url hash changes
      */
-    jQuery(function(){
+    jQuery(function () {
         jQuery(window).hashchange(function () {
             if (userChange === false) {
                 // Ignore internally triggered hash changes
@@ -794,16 +870,16 @@ $('form').live('submit', AJAX.requestHandler);
  * Gracefully handle fatal server errors
  * (e.g: 500 - Internal server error)
  */
-$(document).ajaxError(function(event, request, settings){
+$(document).ajaxError(function (event, request, settings) {
     if (request.status !== 0) { // Don't handle aborted requests
-        var errorCode = $.sprintf(PMA_messages['strErrorCode'], request.status);
-        var errorText = $.sprintf(PMA_messages['strErrorText'], request.statusText);
+        var errorCode = $.sprintf(PMA_messages.strErrorCode, request.status);
+        var errorText = $.sprintf(PMA_messages.strErrorText, request.statusText);
         PMA_ajaxShowMessage(
-            '<div class="error">'
-            + PMA_messages['strErrorProcessingRequest']
-            + '<div>' + errorCode + '</div>'
-            + '<div>' + errorText + '</div>'
-            + '</div>',
+            '<div class="error">' +
+            PMA_messages.strErrorProcessingRequest +
+            '<div>' + errorCode + '</div>' +
+            '<div>' + errorText + '</div>' +
+            '</div>',
             false
         );
         AJAX.active = false;
