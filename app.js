@@ -22,7 +22,7 @@ var db_config = {
 var connection;
 
 app.set('port', process.env.PORT || 5000);
-connection.query('USE heroku_466f3f976236f66');
+
 
 function handleDisconnect() {
     connection = mysql.connection(db_config);
@@ -42,6 +42,8 @@ function handleDisconnect() {
           throw err;                                  // server variable configures this)
         }
     });
+
+    connection.query('USE heroku_466f3f976236f66');
 }
 
 handleDisconnect();
