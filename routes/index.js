@@ -15,6 +15,14 @@ router.get('/', function(req, res)
   res.render('index', { title: 'Express' });
 });
 
+router.get('/ping', function(req, res)
+{
+   test(function(rows) {
+      console.log(rows);
+      res.send(rows);
+   })
+});
+
 router.get('/getFriends', function(req, res)
 {
    getFriends(req.query.userId, function(err, rows) {
@@ -213,6 +221,17 @@ function editFriend(id, firstName, lastName, phoneNumber, res)
    console.log("UPDATE user SET first_name="+firstName+", last_name="+lastName+", phone_number="+phoneNumber+" WHERE id="+id)
    connection.query("UPDATE user SET first_name='"+firstName+"', last_name='"+lastName+"', phone_number='"+phoneNumber+"' WHERE id="+id)
    res.send("success");
+}
+function test(callback)
+{
+   console.log('testing');
+   connection.query('select * from user', function(err, rows) {
+      if(err){
+         console.log(err);
+      }
+      console.log('rows: ' + rows);
+      callback(rows)
+   });
 }
 
 module.exports = router;

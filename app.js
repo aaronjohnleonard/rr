@@ -25,7 +25,9 @@ app.set('port', process.env.PORT || 5000);
 
 
 function handleDisconnect() {
+    console.log('handling disconnect');
     connection = mysql.createConnection(db_config);
+    console.log('created connection');
 
     connection.connect(function(err) {              // The server is either down
         if(err) {                                     // or restarting (takes a while sometimes).
