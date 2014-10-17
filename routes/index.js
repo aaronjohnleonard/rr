@@ -36,13 +36,17 @@ router.post('/newFriendship', function(req, res)
 
 router.post('/newReminder', function(req, res)
 {
+   console.log('raw time: '+req.body.curTime);
    userCurTime = new Date(+req.body.curTime);
+   console.log('user time: '+userCurTime);
    serverCurTime = new Date();
    diff = userCurTime - serverCurTime
    reminderTime = new Date(+req.body.reminderTime)
    adjustment = reminderTime-diff
    adjustedTime = new Date(adjustment)
-   adjustedTimeString = '"'+adjustedTime.getFullYear()+'-'+(adjustedTime.getMonth()+1)+'-'+adjustedTime.getDay()+' '+adjustedTime.getHours()+':'+adjustedTime.getMinutes()+':'+adjustedTime.getSeconds()+'"'
+   console.log('adjusted time: '+adjustedTime);
+   adjustedTimeString = '"'+adjustedTime.getFullYear()+'-'+(adjustedTime.getMonth()+1)+'-'+adjustedTime.getDate()+' '+adjustedTime.getHours()+':'+adjustedTime.getMinutes()+':'+adjustedTime.getSeconds()+'"'
+   console.log('adjusted time string: '+adjustedTimeString);
    insertReminder(req.body.text, req.body.originatingUser, req.body.destinationUser, adjustedTimeString, res)
 });
 
