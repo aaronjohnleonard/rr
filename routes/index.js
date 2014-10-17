@@ -227,7 +227,7 @@ function editFriend(id, firstName, lastName, phoneNumber, res)
 }
 function test(callback)
 {
-   connection.query('select * from user', function(err, rows) {
+   connection.query('show tables', function(err, rows) {
       if(err){
          console.log(err);
       }
