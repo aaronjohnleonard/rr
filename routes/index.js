@@ -18,7 +18,6 @@ router.get('/', function(req, res)
 router.get('/ping', function(req, res)
 {
    test(function(rows) {
-      console.log(rows);
       res.send(rows);
    })
 });
@@ -224,12 +223,10 @@ function editFriend(id, firstName, lastName, phoneNumber, res)
 }
 function test(callback)
 {
-   console.log('testing');
    connection.query('select * from user', function(err, rows) {
       if(err){
          console.log(err);
       }
-      console.log('rows: ' + rows);
       callback(rows)
    });
 }
