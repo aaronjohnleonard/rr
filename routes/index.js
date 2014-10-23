@@ -52,27 +52,35 @@ router.post('/newReminder', function(req, res)
 
 router.post('/addFriend', function(req, res) 
 {
-   getUser(req.body.phone, function(err, rows){
-      if(err){
-         console.log(err);
-         res.send(err);
-      }
-      if(rows.length){
-         insertFriendship(req.body.userId, rows[0].id, res)
-      }
-      else{
-         insertUser(req.body.firstName, req.body.lastName, req.body.phone, 0)
-         getUser(req.body.phone, function(err, rows) {
-            console.log("assigning user " + req.body.userId + " to friend " + rows[0].id)
-            insertFriendship(req.body.userId, rows[0].id, res)
-         })
-      }
+   insertUser(req.body.firstName, req.body.lastName);
+   connection.query('SELECT LAST_INSERT_ID();', function(err, last_insert_rows) {
+      var friendId = last_insert_rows[0]["LAST_INSERT_ID()"];
+      getDevice(req.body.phone, function(err, rows) {
+         if(err){
+            console.log(err);
+            res.send(err);
+         }
+         if(rows.length){
+            addDeviceToUser(friendId, rows[0].id, res)
+            res.send('success');
+         }
+         else{
+            insertDevice(req.body.phone, null);
+            connection.query('SELECT LAST_INSERT_ID();', function(err, last_insert_rows) {
+               var deviceId = last_insert_rows[0]["LAST_INSERT_ID()"];
+               addDeviceToUser(friendId, deviceId, res);
+               res.send('success');
+            });
+         }
+      });
+      insertFriendship(req.body.userId, friendId);
    })
 
 });
 
 router.get('/getUser', function(req, res)
 {
+   console.log('looking for user '+req.query.userId);
    getUserById(req.query.userId, function(err, rows) {
       if(!rows.length){
          res.send(false);
@@ -85,19 +93,12 @@ router.get('/getUser', function(req, res)
 
 router.post('/newUser', function(req, res) 
 {
-   getUser(req.body.phone, function(err, user_rows){
-      insertUser(req.body.firstName, req.body.lastName, req.body.phone, 1)
-      connection.query('SELECT LAST_INSERT_ID();', function(err, last_insert_rows) {
-         id = last_insert_rows[0]["LAST_INSERT_ID()"]
-         console.log("Sending "+id.toString())
-         res.send(id.toString());
-         if(user_rows.length){
-            for (var i = 0; i < user_rows.length; i++) {
-               console.log("deleting "+user_rows[i].id)
-               updateId(user_rows[i].id, id)
-            };
-         }
-      })
+   console.log('creating a new user with ',req.body.firstName, req.body.lastName, req.body.phone, req.body.deviceKey);
+   insertUser(req.body.firstName, req.body.lastName, req.body.phone, req.body.deviceKey)
+   connection.query('SELECT LAST_INSERT_ID();', function(err, last_insert_rows) {
+      id = last_insert_rows[0]["LAST_INSERT_ID()"];
+      console.log("Sending "+id.toString())
+      res.send(id.toString());
    })
 });
 
@@ -136,16 +137,25 @@ router.post('/editFriend', function(req, res)
    editFriend(req.body.id, req.body.firstName, req.body.lastName, req.body.phoneNumber, res);
 });
 
-function insertUser(firstName, lastName, phoneNumber, hasApp, res)
+function insertUser(firstName, lastName, phoneNumber, deviceKey, res)
 {
-   connection.query('INSERT INTO user (first_name,last_name,phone_number, has_app) values ("'+firstName+'","'+lastName+'","'+phoneNumber+'",'+hasApp+');', function(err, rows){
+   console.log('INSERT INTO user (first_name,last_name) values ("'+firstName+'","'+lastName+'");');
+   connection.query('INSERT INTO user (first_name,last_name) values ("'+firstName+'","'+lastName+'");', function(err, rows){
       if(err){
          console.log(err)
       }
-      else if (res){
-         res.send("success")
-      }
    });
+   if(phoneNumber){
+      connection.query('SELECT LAST_INSERT_ID();', function(err, last_insert_rows) {
+         var userId = last_insert_rows[0]["LAST_INSERT_ID()"];  
+         console.log('just about to insert device');
+         insertDevice(phoneNumber, deviceKey);
+         connection.query('SELECT LAST_INSERT_ID();', function(err, last_insert_rows) {
+            var deviceId = last_insert_rows[0]["LAST_INSERT_ID()"];
+            addDeviceToUser(userId, deviceId);
+         });
+      });
+   }
 }
 function insertFriendship(userId, friendId, res)
 {
@@ -170,9 +180,22 @@ function insertReminder(text, originatingUser, destinationUser, reminderTime, re
       }
    });
 }
-function getUser(phoneNumber, callback)
+function insertDevice(phoneNumber, deviceKey)
 {
-   connection.query("SELECT * FROM user WHERE phone_number='"+phoneNumber+"'", callback);
+   if(deviceKey){
+      deviceKey = deviceKey.replace(/[<>\s]/g, '');
+   }
+   console.log('INSERT INTO device (phone_number, device_key) values("'+phoneNumber+'","'+deviceKey+'");')
+   connection.query('INSERT INTO device (phone_number, device_key) values("'+phoneNumber+'","'+deviceKey+'");');
+}
+function addDeviceToUser(userId, deviceId)
+{
+   console.log('INSERT INTO user_device (user_id, device_id) values("'+userId+'","'+deviceId+'");');
+   connection.query('INSERT INTO user_device (user_id, device_id) values("'+userId+'","'+deviceId+'");');
+}
+function getDevice(phoneNumber, callback)
+{
+   connection.query('SELECT * FROM device WHERE phone_number="'+phoneNumber+'"', callback);
 }
 function getUserById(userId, callback)
 {

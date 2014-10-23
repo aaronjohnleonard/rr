@@ -1,12 +1,20 @@
 var mysql = require('mysql');
+var apn = require('apn')
 
 var db_config = {
    host     : 'us-cdbr-iron-east-01.cleardb.net',
    user     : 'bf491532417c27',
    password : 'b2fff196'
 };
-
 var connection;
+
+var options = {
+	batchFeedback: true,
+	interval: 1,
+	production: false,
+	passphrase: 'english33'
+}
+
 
 function handleDisconnect() {
     connection = mysql.createConnection(db_config);
@@ -42,7 +50,12 @@ var client = require('twilio')(accountSid, authToken);
 var infinite = function() {
 	console.log("checking at " + new Date())
 
-	connection.query("SELECT reminder.id, reminder.text, dest_user.phone_number, orig_user.first_name, orig_user.last_name FROM reminder JOIN user orig_user ON reminder.originating_user=orig_user.id JOIN user dest_user ON reminder.destination_user=dest_user.id WHERE reminder_time <= NOW() AND !has_been_sent;", function(err, rows){
+	connection.query("SELECT reminder.id, reminder.text, phone_number, orig_user.first_name, orig_user.last_name, device_key "+
+					"FROM reminder JOIN user orig_user ON reminder.originating_user=orig_user.id "+
+					"JOIN user dest_user ON reminder.destination_user=dest_user.id "+
+					"JOIN user_device ON user_device.user_id=dest_user.id "+
+					"JOIN device ON device.id=user_device.device_id "+
+					"WHERE reminder_time <= NOW() AND !has_been_sent;", function(err, rows){
 		for (var i = 0; i < rows.length; i++) {
 			connection.query("UPDATE reminder SET has_been_sent=1 WHERE id="+rows[i].id, function(err, rows){
 				if (err)
@@ -53,13 +66,27 @@ var infinite = function() {
 
 			console.log("Sending reminder")
 
-			client.messages.create({ 
-				to: rows[i].phone_number, 
-				from: "+13852356308", 
-				body: "This is a reminder from Remote Reminders:\n"+rows[i].text+"\nSent from "+rows[i].first_name+" "+rows[i].last_name,
-			}, function(err, message) { 
+			if(rows[i].device_key){
+				var apnConnection = new apn.Connection(options);
+				var device = new apn.Device(rows[i].device_key);
+				var note = new apn.Notification();
+				note.expiry = Math.floor(Date.now() / 1000) + 3600; // Expires 1 hour from now.
+				note.alert = rows[i].text + "\nFrom " + rows[i].first_name + " " + rows[i].last_name;
+				note.sound = "Note";
+				console.log('sending '+note.alert+' to '+device);
+				apnConnection.pushNotification(note, device);	
+			}
+			else {
+				client.messages.create({ 
+					to: rows[i].phone_number, 
+					from: "+13852356308", 
+					body: "This is a reminder from Remote Reminders:\n"+rows[i].text+"\nSent from "+rows[i].first_name+" "+rows[i].last_name,
+				}, function(err, message) { 
 
-			});
+				});
+			}
+
+
 		};
 	})
 
